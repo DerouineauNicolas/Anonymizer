@@ -8,4 +8,8 @@ INCLUDE_DIRECTORIES(/usr/include/)
 link_directories(/usr/lib/)
 
 add_executable( Anonymizer main.cpp )
-target_link_libraries( Anonymizer ${OpenCV_LIBS})
+target_link_libraries( Anonymizer ${OpenCV_LIBS}
+                       avutil
+                       avformat
+                       avcodec
+                       )
