@@ -11,6 +11,25 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(55,28,1)
+#define av_frame_alloc  avcodec_alloc_frame
+#define av_packet_unref av_free_packet
+#endif
+
+#if ((LIBAVCODEC_VERSION_MAJOR == 52) && (LIBAVCODEC_VERSION_MINOR <= 20)) || (LIBAVCODEC_VERSION_MAJOR < 52)
+#undef USE_AVCODEC2
+#else
+#define USE_AVCODEC2   1
+#endif
+
+
+#if (LIBAVCODEC_VERSION_MAJOR >= 55)
+#define USE_AVCTX3
+#elif (LIBAVCODEC_VERSION_MAJOR >= 54) && (LIBAVCODEC_VERSION_MINOR >= 35)
+#define USE_AVCTX3
+#endif
+
+
 #include <iostream>
 #include <stdio.h>
 
@@ -148,7 +167,11 @@ static int open_codec_context(int *stream_idx,
         st = fmt_ctx->streams[stream_index];
 
         /* find decoder for the stream */
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(55,28,1)
         dec = avcodec_find_decoder(st->codecpar->codec_id);
+#else
+        dec = avcodec_find_decoder(st->codecpar->codec_id);
+#endif
         if (!dec) {
             fprintf(stderr, "Failed to find %s codec\n",
                     av_get_media_type_string(type));
@@ -163,16 +186,23 @@ static int open_codec_context(int *stream_idx,
             return AVERROR(ENOMEM);
         }
 
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
         /* Copy codec parameters from input stream to output codec context */
         if ((ret = avcodec_parameters_to_context(*dec_ctx, st->codecpar)) < 0) {
             fprintf(stderr, "Failed to copy %s codec parameters to decoder context\n",
                     av_get_media_type_string(type));
             return ret;
         }
+#endif
+
 
         /* Init the decoders, with or without reference counting */
         av_dict_set(&opts, "refcounted_frames", refcount ? "1" : "0", 0);
+#ifdef USE_AVCTX3
         if ((ret = avcodec_open2(*dec_ctx, dec, &opts)) < 0) {
+#else
+        if ((ret = avcodec_open(*dec_ctx, dec)) < 0) {
+#endif
             fprintf(stderr, "Failed to open %s codec\n",
                     av_get_media_type_string(type));
             return ret;
@@ -377,14 +407,23 @@ int main( int argc, const char** argv )
     }
 
 end:
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(55,28,1)
+    avcodec_close(audio_dec_ctx);
+    av_free(&audio_dec_ctx);
+#else
     avcodec_free_context(&video_dec_ctx);
-    avcodec_free_context(&audio_dec_ctx);
+#endif
+    //avcodec_free_context(&audio_dec_ctx);
     avformat_close_input(&fmt_ctx);
     if (video_dst_file)
         fclose(video_dst_file);
     if (audio_dst_file)
         fclose(audio_dst_file);
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(55,28,1)
     av_frame_free(&frame);
+#else
+    av_free(&frame);
+#endif
     av_free(video_dst_data[0]);
 
     return ret < 0;  

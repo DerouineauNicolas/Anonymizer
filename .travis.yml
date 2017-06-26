@@ -5,7 +5,7 @@ compiler:
     - clang
 
 before_install:
-    - sudo apt-get install libopencv-dev
+    - sudo apt-get install libopencv-dev libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libavdevice-dev
 
 before_script:  
     - mkdir build
